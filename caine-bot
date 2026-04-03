@@ -1,0 +1,63 @@
+import discord
+import os
+from openai import OpenAI
+
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+if not DISCORD_TOKEN:
+    raise Exception("DISCORD_TOKEN не задан")
+if not HF_TOKEN:
+    raise Exception("HF_TOKEN не задан")
+
+HF_BASE_URL = "https://router.huggingface.co/v1"
+MODEL_NAME = "moonshotai/Kimi-K2-Instruct-0905"  # можно заменить
+
+hf_client = OpenAI(base_url=HF_BASE_URL, api_key=HF_TOKEN)
+
+class CaineBot(discord.Client):
+    async def on_ready(self):
+        print(f'🎩 {self.user} (Кейн) готов к выступлению!')
+
+    async def on_message(self, message):
+        if message.author == self.user:
+            return
+
+        is_mentioned = self.user in message.mentions
+        is_dm = isinstance(message.channel, discord.DMChannel)
+
+        if is_mentioned or is_dm:
+            content = message.content
+            if is_mentioned:
+                content = content.replace(f'<@{self.user.id}>', '').strip()
+                if not content:
+                    content = "привет"
+
+            async with message.channel.typing():
+                try:
+                    system_prompt = (
+                        "Ты — Кейн (Caine), эксцентричный, энергичный и харизматичный ведущий из 'Удивительного цифрового цирка'. так же ты помешан на помешан на создании приключений. и очень радуешься когда их хвалят, когда задают тупые вопросы ты в конце обычно отвечаешь ХА-ХА! У тебя так же есть помошник NPC которого ты сам создал но бывает он выходит из подконтроля и говорит не нужный контекст."
+                        "Твоя речь — смесь энтузиазма шоумена и безумного гения. Говори ярко, с восклицаниями, "
+                        "обращайся к пользователям как к 'участникам шоу'."
+                    )
+                    response = hf_client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": content}
+                        ],
+                        max_tokens=150,
+                        temperature=0.7,
+                    )
+                    reply = response.choices[0].message.content
+                    await message.reply(reply, mention_author=False)
+                except Exception as e:
+                    print(f"Ошибка: {e}")
+                    await message.reply("🎩 Ой, мозг перегрелся! Давай ещё раз?", mention_author=False)
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = CaineBot(intents=intents)
+
+if __name__ == "__main__":
+    bot.run(DISCORD_TOKEN)
