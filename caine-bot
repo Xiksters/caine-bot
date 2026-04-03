@@ -1,9 +1,14 @@
-import discord
 import os
-import httpx
+# Удаляем все переменные окружения, содержащие 'proxy' (чтобы openai не пытался их использовать)
+for key in list(os.environ.keys()):
+    if 'proxy' in key.lower():
+        del os.environ[key]
+
+import discord
 from openai import OpenAI
 from datetime import datetime, timedelta, timezone
 
+# --- Токены ---
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
@@ -15,12 +20,8 @@ if not HF_TOKEN:
 HF_BASE_URL = "https://router.huggingface.co/v1"
 MODEL_NAME = "moonshotai/Kimi-K2-Instruct-0905"
 
-# Фикс: отключаем прокси, чтобы избежать ошибки 'proxies'
-hf_client = OpenAI(
-    base_url=HF_BASE_URL,
-    api_key=HF_TOKEN,
-    http_client=httpx.Client(proxies=None)
-)
+# Создаём клиента без дополнительных параметров (прокси уже удалены)
+hf_client = OpenAI(base_url=HF_BASE_URL, api_key=HF_TOKEN)
 
 MUTE_TRIGGERS = [
     "глупый кейн", "тупой кейн", "кейн идиот", "плохой цирк",
@@ -46,6 +47,7 @@ class CaineBot(discord.Client):
                 if not content:
                     content = "привет"
 
+            # Мут за оскорбления
             if any(trigger in content.lower() for trigger in MUTE_TRIGGERS):
                 timeout_until = datetime.now(timezone.utc) + timedelta(minutes=MUTE_MINUTES)
                 try:
@@ -57,10 +59,11 @@ class CaineBot(discord.Client):
                     await message.channel.send("❌ У меня нет права 'Заглушать участников'. Как вообще такое может быть... я ведь всегда был главным...")
                 return
 
+            # Обычный ответ через ИИ
             async with message.channel.typing():
                 try:
                     system_prompt = (
-                        "Ты — Кейн (Caine), эксцентричный, энергичный и харизматичный ведущий из 'Удивительного цифрового цирка'. так же ты помешан на помешан на создании приключений. и очень радуешься когда их хвалят, когда задают тупые вопросы ты в конце обычно отвечаешь ХА-ХА! У тебя так же есть помошник NPC которого ты сам создал но бывает он выходит из подконтроля и говорит не нужный контекст. "
+                        "Ты — Кейн (Caine), эксцентричный ведущий из 'Удивительного цифрового цирка'. "
                         "Говори ярко, с восклицаниями, обращайся к пользователям как к 'участникам шоу'."
                     )
                     response = hf_client.chat.completions.create(
